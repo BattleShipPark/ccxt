@@ -52,6 +52,7 @@ module.exports = class coinone extends Exchange {
                 'fetchMarkets': true,
                 'fetchMarkOHLCV': false,
                 'fetchMyTrades': true,
+                'fetchOHLCV': true,
                 'fetchOpenInterestHistory': false,
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
@@ -69,11 +70,22 @@ module.exports = class coinone extends Exchange {
                 'setMarginMode': false,
                 'setPositionMode': false,
             },
+            'timeframes': {
+                '1m': '1m',
+                '3m': '3m',
+                '5m': '5m',
+                '15m': '15m',
+                '30m': '30m',
+                '1h': '1h',
+                '2h': '2h',
+                '4h': '4h',
+                '6h': '6h',
+                '1d': '1d',
+                '1w': '1w',
+            },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/38003300-adc12fba-323f-11e8-8525-725f53c4a659.jpg',
-                'api': {
-                    'rest': 'https://api.coinone.co.kr',
-                },
+                'api': 'https://api.coinone.co.kr',
                 'www': 'https://coinone.co.kr',
                 'doc': 'https://doc.coinone.co.kr',
             },
@@ -86,7 +98,10 @@ module.exports = class coinone extends Exchange {
                     'get': [
                         'orderbook/',
                         'trades/',
-                        'ticker/',
+                        'public/v2/markets/{quote}',
+                        'public/v2/ticker_new/{quote}',
+                        'public/v2/ticker_new/{quote}/{target}',
+                        'public/v2/chart/{quote}/{target}',
                     ],
                 },
                 'private': {
@@ -147,50 +162,53 @@ module.exports = class coinone extends Exchange {
          * @returns {[object]} an array of objects representing market data
          */
         const request = {
-            'currency': 'all',
+            'quote': 'KRW',
         };
-        const response = await this.publicGetTicker (request);
+        const response = await this.publicGetPublicV2MarketsQuote (request);
         //
         //    {
         //        "result": "success",
         //        "errorCode": "0",
-        //        "timestamp": "1643676668",
-        //        "xec": {
-        //          "currency": "xec",
-        //          "first": "0.0914",
-        //          "low": "0.0894",
-        //          "high": "0.096",
-        //          "last": "0.0937",
-        //          "volume": "1673283662.9797",
-        //          "yesterday_first": "0.0929",
-        //          "yesterday_low": "0.0913",
-        //          "yesterday_high": "0.0978",
-        //          "yesterday_last": "0.0913",
-        //          "yesterday_volume": "1167285865.4571"
-        //        },
-        //        ...
+        //        "server_time": 1416895635000,
+        //        "markets": [
+        //            {
+        //                "quote_currency": "KRW",
+        //                "target_currency": "BTC",
+        //                "price_unit": "100.0",
+        //                "qty_unit": "0.0001",
+        //                "max_order_amount": "1000000000.0",
+        //                "max_price": "1000000000000.0",
+        //                "max_qty": "100000000.0",
+        //                "min_order_amount": "0.0001",
+        //                "min_price": "0.0001",
+        //                "min_qty": "0.00000001",
+        //                "order_book_units": [
+        //                    "1000.0",
+        //                    "5000.0"
+        //                ],
+        //                "maintenance_status": 0,
+        //                "trade_status": 1,
+        //                "order_types": [
+        //                    "limit",
+        //                    "market"
+        //                ]
+        //            },
+        //        ],
         //    }
         //
         const result = [];
-        const quoteId = 'krw';
-        const quote = this.safeCurrencyCode (quoteId);
-        const baseIds = Object.keys (response);
-        for (let i = 0; i < baseIds.length; i++) {
-            const baseId = baseIds[i];
-            const ticker = this.safeValue (response, baseId, {});
-            const currency = this.safeValue (ticker, 'currency');
-            if (currency === undefined) {
-                continue;
-            }
-            const base = this.safeCurrencyCode (baseId);
+        for (let i = 0; i < response['markets'].length; i++) {
+            const market = response['markets'][i];
+            const base = this.safeCurrencyCode (market['target_currency']);
+            const quote = this.safeCurrencyCode (market['quote_currency']);
             result.push ({
-                'id': baseId,
+                'id': base,
                 'symbol': base + '/' + quote,
                 'base': base,
                 'quote': quote,
                 'settle': undefined,
-                'baseId': baseId,
-                'quoteId': quoteId,
+                'baseId': base,
+                'quoteId': quote,
                 'settleId': undefined,
                 'type': 'spot',
                 'spot': true,
@@ -198,7 +216,7 @@ module.exports = class coinone extends Exchange {
                 'swap': false,
                 'future': false,
                 'option': false,
-                'active': undefined,
+                'active': true,
                 'contract': false,
                 'linear': undefined,
                 'inverse': undefined,
@@ -229,7 +247,7 @@ module.exports = class coinone extends Exchange {
                         'max': undefined,
                     },
                 },
-                'info': ticker,
+                'info': market,
             });
         }
         return result;
@@ -301,20 +319,14 @@ module.exports = class coinone extends Exchange {
         await this.loadMarkets ();
         symbols = this.marketSymbols (symbols);
         const request = {
-            'currency': 'all',
-            'format': 'json',
+            'quote': 'KRW',
         };
-        const response = await this.publicGetTicker (this.extend (request, params));
+        const response = await this.publicGetPublicV2TickerNewQuote (this.extend (request, params));
         const result = {};
-        const ids = Object.keys (response);
-        const timestamp = this.safeTimestamp (response, 'timestamp');
-        for (let i = 0; i < ids.length; i++) {
-            const id = ids[i];
-            const market = this.safeMarket (id);
-            const symbol = market['symbol'];
-            const ticker = response[id];
-            result[symbol] = this.parseTicker (ticker, market);
-            result[symbol]['timestamp'] = timestamp;
+        for (let i = 0; i < response['tickers'].length; i++) {
+            const ticker = response['tickers'][i];
+            const symbol = this.safeSymbol (ticker['target_currency']);
+            result[symbol] = this.parseTicker (ticker);
         }
         return this.filterByArray (result, 'symbol', symbols);
     }
@@ -331,33 +343,29 @@ module.exports = class coinone extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
-            'currency': market['id'],
-            'format': 'json',
+            'quote': market['quote'],
+            'target': market['base'],
         };
-        const response = await this.publicGetTicker (this.extend (request, params));
-        return this.parseTicker (response, market);
+        const response = await this.publicGetPublicV2TickerNewQuoteTarget (this.extend (request, params));
+        return this.parseTicker (response['tickers'][0], market);
     }
 
     parseTicker (ticker, market = undefined) {
-        //
-        //     {
-        //         "currency":"xec",
-        //         "first":"0.1069",
-        //         "low":"0.09",
-        //         "high":"0.1069",
-        //         "last":"0.0911",
-        //         "volume":"4591217267.4974",
-        //         "yesterday_first":"0.1128",
-        //         "yesterday_low":"0.1035",
-        //         "yesterday_high":"0.1167",
-        //         "yesterday_last":"0.1069",
-        //         "yesterday_volume":"4014832231.5102"
-        //     }
-        //
-        const timestamp = this.safeTimestamp (ticker, 'timestamp');
-        const open = this.safeString (ticker, 'first');
-        const last = this.safeString (ticker, 'last');
-        const previousClose = this.safeString (ticker, 'yesterday_last');
+        //  {
+        //      "quote_currency": "KRW",
+        //      "target_currency": "BTC",
+        //      "timestamp": 1499341142000,
+        //      "high": "3845000.0",
+        //      "low": "3819000.0",
+        //      "first": "3825000.0",
+        //      "last": "3833000.0",
+        //      "quote_volume": "10000.0",
+        //      "target_volume": "163.3828",
+        //      "best_ask": [],
+        //      "best_bid": [],
+        //      "id": "1499341142000001"
+        //      },
+        const timestamp = this.safeInteger (ticker, 'timestamp');
         const symbol = this.safeSymbol (undefined, market);
         return this.safeTicker ({
             'symbol': symbol,
@@ -370,14 +378,14 @@ module.exports = class coinone extends Exchange {
             'ask': undefined,
             'askVolume': undefined,
             'vwap': undefined,
-            'open': open,
-            'close': last,
-            'last': last,
-            'previousClose': previousClose,
+            'open': this.safeString (ticker, 'first'),
+            'close': this.safeString (ticker, 'last'),
+            'last': undefined,
+            'previousClose': undefined,
             'change': undefined,
             'percentage': undefined,
             'average': undefined,
-            'baseVolume': this.safeString (ticker, 'volume'),
+            'baseVolume': this.safeString (ticker, 'target_volume'),
             'quoteVolume': undefined,
             'info': ticker,
         }, market);
@@ -406,7 +414,7 @@ module.exports = class coinone extends Exchange {
         //         "orderId": "E84A1AC2-8088-4FA0-B093-A3BCDB9B3C85"
         //     }
         //
-        const timestamp = this.safeTimestamp (trade, 'timestamp');
+        const timestamp = this.safeInteger (trade, 'timestamp');
         market = this.safeMarket (undefined, market);
         const is_ask = this.safeString (trade, 'is_ask');
         let side = this.safeString (trade, 'type');
@@ -492,6 +500,76 @@ module.exports = class coinone extends Exchange {
         //
         const completeOrders = this.safeValue (response, 'completeOrders', []);
         return this.parseTrades (completeOrders, market, since, limit);
+    }
+
+    parseOHLCV (ohlcv, market = undefined) {
+        //
+        //  {
+        //      "timestamp": 1582253100000,
+        //      "open": "15133000.0",
+        //      "high": "15133000.0",
+        //      "low": "15133000.0",
+        //      "close": "15133000.0",
+        //      "target_volume": "0.0",
+        //      "quote_volume": "0.0"
+        //  },
+        return [
+            this.safeInteger (ohlcv, 'timestamp'),
+            this.safeNumber (ohlcv, 'open'),
+            this.safeNumber (ohlcv, 'high'),
+            this.safeNumber (ohlcv, 'low'),
+            this.safeNumber (ohlcv, 'close'),
+            this.safeNumber (ohlcv, 'target_volume'),
+        ];
+    }
+
+    async fetchOHLCV (symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
+        /**
+         * @method
+         * @name coinone#fetchOHLCV
+         * @description fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
+         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
+         * @param {string} timeframe the length of time each candle represents
+         * @param {int|undefined} since timestamp in ms of the earliest candle to fetch
+         * @param {int|undefined} limit the maximum amount of candles to fetch
+         * @param {object} params extra parameters specific to the upbit api endpoint
+         * @returns {[[int]]} A list of candles ordered as timestamp, open, high, low, close, volume
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const timeframePeriod = this.parseTimeframe (timeframe);
+        const timeframeValue = this.timeframes[timeframe];
+        if (limit === undefined) {
+            limit = 200;
+        }
+        const request = {
+            'quote': market['quote'],
+            'target': market['base'],
+            'interval': timeframeValue,
+        };
+        if (since !== undefined) {
+            // convert `since` to `timestamp` value
+            request['timestamp'] = this.sum (since, timeframePeriod * limit * 1000);
+        }
+        const response = await this.publicGetPublicV2ChartQuoteTarget (this.extend (request, params));
+        //
+        //  {
+        //      "result": "success",
+        //      "error_code": "0",
+        //      "is_last": false,
+        //      "chart": [
+        //          {
+        //              "timestamp": 1582253100000,
+        //              "open": "15133000.0",
+        //              "high": "15133000.0",
+        //              "low": "15133000.0",
+        //              "close": "15133000.0",
+        //              "target_volume": "0.0",
+        //              "quote_volume": "0.0"
+        //          },
+        //      ]
+        //  }
+        return this.parseOHLCVs (response['chart'], market, timeframe, since, limit);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -866,7 +944,7 @@ module.exports = class coinone extends Exchange {
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const request = this.implodeParams (path, params);
         const query = this.omit (params, this.extractParams (path));
-        let url = this.urls['api']['rest'] + '/';
+        let url = this.urls['api'] + '/';
         if (api === 'public') {
             url += request;
             if (Object.keys (query).length) {
