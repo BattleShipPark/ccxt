@@ -124,6 +124,7 @@ module.exports = class coinone extends Exchange {
                         'transaction/krw/history/',
                         'transaction/btc/',
                         'transaction/coin/',
+                        'v2/order/complete_orders',
                     ],
                 },
             },
@@ -479,21 +480,21 @@ module.exports = class coinone extends Exchange {
         const market = this.market (symbol);
         const request = {
             'currency': market['id'],
-            'format': 'json',
         };
-        const response = await this.publicGetTrades (this.extend (request, params));
+        const response = await this.privatePostV2OrderCompleteOrders (this.extend (request, params));
         //
         //     {
         //         "result": "success",
         //         "errorCode": "0",
-        //         "timestamp": "1416895635",
-        //         "currency": "btc",
         //         "completeOrders": [
         //             {
         //                 "timestamp": "1416893212",
         //                 "price": "420000.0",
+        //                 "type": "bid",
         //                 "qty": "0.1",
-        //                 "is_ask": "1"
+        //                 "feeRate": "-0.0015",
+        //                 "fee": "-0.0000015"
+        //                 "orderId": "E84A1AC2-8088-4FA0-B093-A3BCDB9B3C85"
         //             }
         //         ]
         //     }
