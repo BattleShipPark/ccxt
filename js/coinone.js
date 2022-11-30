@@ -149,7 +149,6 @@ module.exports = class coinone extends Exchange {
                 '107': BadRequest, // {"errorCode":"107","errorMsg":"Parameter error","result":"error"}
             },
             'commonCurrencies': {
-                'SOC': 'Soda Coin',
             },
         });
     }
